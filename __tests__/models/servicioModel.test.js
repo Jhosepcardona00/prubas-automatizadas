@@ -1,212 +1,177 @@
 const ServicioModel = require("../../src/models/servicioModel")
 
 
-// Mock de la base de datos
-jest.mock("../../src/config/db", () => ({
-  query: jest.fn(),
-}))
-
+// Mock database
+jest.mock("../../src/config/db")
 const db = require("../../src/config/db")
 
-describe("Modelo Servicio", () => {
+describe("ServicioModel", () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    db.query = jest.fn()
   })
 
-  test("debería obtener todos los servicios correctamente", async () => {
-    // Arrange
-    const mockServicios = [
-      {
+  describe("findAll", () => {
+    it("should return all services", async () => {
+      const mockServicios = [
+        {
+          id: 1,
+          nombre: "Cambio de aceite",
+          descripcion: "Cambio completo de aceite",
+          precio: 50000,
+          estado: "Activo",
+        },
+        {
+          id: 2,
+          nombre: "Revisión general",
+          descripcion: "Revisión completa del vehículo",
+          precio: 80000,
+          estado: "Activo",
+        },
+      ]
+
+      db.query.mockResolvedValue([mockServicios])
+
+      const result = await ServicioModel.findAll()
+
+      expect(db.query).toHaveBeenCalledWith("SELECT * FROM servicio")
+      expect(result).toEqual(mockServicios)
+    })
+
+    it("should handle database errors", async () => {
+      db.query.mockRejectedValue(new Error("Database connection failed"))
+
+      await expect(ServicioModel.findAll()).rejects.toThrow("Database connection failed")
+    })
+  })
+
+  describe("findById", () => {
+    it("should return service by id", async () => {
+      const mockServicio = {
         id: 1,
         nombre: "Cambio de aceite",
-        descripcion: "Cambio de aceite y filtro",
+        descripcion: "Cambio completo de aceite",
         precio: 50000,
         estado: "Activo",
-      },
-      {
-        id: 2,
-        nombre: "Revisión de frenos",
-        descripcion: "Inspección completa del sistema de frenos",
-        precio: 80000,
-        estado: "Activo",
-      },
-    ]
-    db.query.mockResolvedValue([mockServicios])
+      }
 
-    // Act
-    const resultado = await ServicioModel.findAll()
+      db.query.mockResolvedValue([[mockServicio]])
 
-    // Assert
-    expect(resultado).toEqual(mockServicios)
-    expect(db.query).toHaveBeenCalledWith("SELECT * FROM servicio")
+      const result = await ServicioModel.findById(1)
+
+      expect(db.query).toHaveBeenCalledWith("SELECT * FROM servicio WHERE id = ?", [1])
+      expect(result).toEqual(mockServicio)
+    })
+
+    it("should return undefined if service not found", async () => {
+      db.query.mockResolvedValue([[]])
+
+      const result = await ServicioModel.findById(999)
+
+      expect(result).toBeUndefined()
+    })
   })
 
-  test("debería obtener un servicio por ID correctamente", async () => {
-    // Arrange
-    const mockServicio = {
-      id: 1,
-      nombre: "Cambio de aceite",
-      descripcion: "Cambio de aceite y filtro",
-      precio: 50000,
-      estado: "Activo",
-    }
-    db.query.mockResolvedValue([[mockServicio]])
-
-    // Act
-    const resultado = await ServicioModel.findById(1)
-
-    // Assert
-    expect(resultado).toEqual(mockServicio)
-    expect(db.query).toHaveBeenCalledWith("SELECT * FROM servicio WHERE id = ?", [1])
-  })
-
-  test("debería crear un servicio nuevo correctamente", async () => {
-    // Arrange
-    const nuevoServicio = {
+  describe("create", () => {
+    const mockServicioData = {
       nombre: "Alineación y balanceo",
-      descripcion: "Alineación y balanceo de llantas",
-      precio: 120000,
+      descripcion: "Servicio completo de alineación y balanceo",
+      precio: 75000,
       estado: "Activo",
     }
-    const mockResult = { insertId: 3 }
-    db.query.mockResolvedValue([mockResult])
 
-    // Act
-    const resultado = await ServicioModel.create(nuevoServicio)
+    it("should create a new service", async () => {
+      const mockInsertId = 5
+      db.query.mockResolvedValue([{ insertId: mockInsertId }])
 
-    // Assert
-    expect(resultado).toBe(3)
-    expect(db.query).toHaveBeenCalledWith(
-      "INSERT INTO servicio (nombre, descripcion, precio, estado) VALUES (?, ?, ?, ?)",
-      ["Alineación y balanceo", "Alineación y balanceo de llantas", 120000, "Activo"],
-    )
+      const result = await ServicioModel.create(mockServicioData)
+
+      expect(db.query).toHaveBeenCalledWith(
+        "INSERT INTO servicio (nombre, descripcion, precio, estado) VALUES (?, ?, ?, ?)",
+        ["Alineación y balanceo", "Servicio completo de alineación y balanceo", 75000, "Activo"],
+      )
+      expect(result).toBe(mockInsertId)
+    })
+
+    it("should create service with default status when not provided", async () => {
+      const servicioSinEstado = {
+        nombre: "Frenos",
+        descripcion: "Cambio de pastillas de freno",
+        precio: 120000,
+      }
+
+      db.query.mockResolvedValue([{ insertId: 6 }])
+
+      await ServicioModel.create(servicioSinEstado)
+
+      expect(db.query).toHaveBeenCalledWith(
+        "INSERT INTO servicio (nombre, descripcion, precio, estado) VALUES (?, ?, ?, ?)",
+        ["Frenos", "Cambio de pastillas de freno", 120000, "Activo"],
+      )
+    })
+
+    it("should handle database errors during creation", async () => {
+      db.query.mockRejectedValue(new Error("Duplicate entry"))
+
+      await expect(ServicioModel.create(mockServicioData)).rejects.toThrow("Duplicate entry")
+    })
   })
 
-  test("debería crear un servicio con estado por defecto cuando no se proporciona", async () => {
-    // Arrange
-    const nuevoServicio = {
-      nombre: "Diagnóstico computarizado",
-      descripcion: "Diagnóstico completo del vehículo",
-      precio: 75000,
-    }
-    const mockResult = { insertId: 4 }
-    db.query.mockResolvedValue([mockResult])
-
-    // Act
-    const resultado = await ServicioModel.create(nuevoServicio)
-
-    // Assert
-    expect(resultado).toBe(4)
-    expect(db.query).toHaveBeenCalledWith(
-      "INSERT INTO servicio (nombre, descripcion, precio, estado) VALUES (?, ?, ?, ?)",
-      ["Diagnóstico computarizado", "Diagnóstico completo del vehículo", 75000, "Activo"],
-    )
-  })
-
-  test("debería actualizar un servicio correctamente", async () => {
-    // Arrange
-    const datosActualizacion = {
+  describe("update", () => {
+    const updateData = {
       nombre: "Cambio de aceite premium",
-      descripcion: "Cambio de aceite sintético y filtro de alta calidad",
+      descripcion: "Cambio de aceite sintético premium",
       precio: 85000,
       estado: "Activo",
     }
-    db.query.mockResolvedValue([])
 
-    // Act
-    await ServicioModel.update(1, datosActualizacion)
+    it("should update service successfully", async () => {
+      db.query.mockResolvedValue([{ affectedRows: 1 }])
 
-    // Assert
-    expect(db.query).toHaveBeenCalledWith(
-      "UPDATE servicio SET nombre = ?, descripcion = ?, precio = ?, estado = ? WHERE id = ?",
-      ["Cambio de aceite premium", "Cambio de aceite sintético y filtro de alta calidad", 85000, "Activo", 1],
-    )
+      await ServicioModel.update(1, updateData)
+
+      expect(db.query).toHaveBeenCalledWith(
+        "UPDATE servicio SET nombre = ?, descripcion = ?, precio = ?, estado = ? WHERE id = ?",
+        ["Cambio de aceite premium", "Cambio de aceite sintético premium", 85000, "Activo", 1],
+      )
+    })
+
+    it("should handle update errors", async () => {
+      db.query.mockRejectedValue(new Error("Update failed"))
+
+      await expect(ServicioModel.update(1, updateData)).rejects.toThrow("Update failed")
+    })
   })
 
-  test("debería eliminar un servicio correctamente", async () => {
-    // Arrange
-    db.query.mockResolvedValue([])
+  describe("delete", () => {
+    it("should delete service successfully", async () => {
+      db.query.mockResolvedValue([{ affectedRows: 1 }])
 
-    // Act
-    await ServicioModel.delete(1)
+      await ServicioModel.delete(1)
 
-    // Assert
-    expect(db.query).toHaveBeenCalledWith("DELETE FROM servicio WHERE id = ?", [1])
+      expect(db.query).toHaveBeenCalledWith("DELETE FROM servicio WHERE id = ?", [1])
+    })
+
+    it("should handle delete errors", async () => {
+      db.query.mockRejectedValue(new Error("Cannot delete service with dependencies"))
+
+      await expect(ServicioModel.delete(1)).rejects.toThrow("Cannot delete service with dependencies")
+    })
   })
 
-  test("debería cambiar el estado de un servicio correctamente", async () => {
-    // Arrange
-    db.query.mockResolvedValue([])
+  describe("cambiarEstado", () => {
+    it("should change service status successfully", async () => {
+      db.query.mockResolvedValue([{ affectedRows: 1 }])
 
-    // Act
-    await ServicioModel.cambiarEstado(1, "Inactivo")
+      await ServicioModel.cambiarEstado(1, "Inactivo")
 
-    // Assert
-    expect(db.query).toHaveBeenCalledWith("UPDATE servicio SET estado = ? WHERE id = ?", ["Inactivo", 1])
-  })
+      expect(db.query).toHaveBeenCalledWith("UPDATE servicio SET estado = ? WHERE id = ?", ["Inactivo", 1])
+    })
 
-  test("debería manejar errores en la consulta findAll", async () => {
-    // Arrange
-    const error = new Error("Database connection error")
-    db.query.mockRejectedValue(error)
+    it("should handle status change errors", async () => {
+      db.query.mockRejectedValue(new Error("Status change failed"))
 
-    // Act & Assert
-    await expect(ServicioModel.findAll()).rejects.toThrow("Database connection error")
-  })
-
-  test("debería manejar errores en la consulta findById", async () => {
-    // Arrange
-    const error = new Error("Database query error")
-    db.query.mockRejectedValue(error)
-
-    // Act & Assert
-    await expect(ServicioModel.findById(1)).rejects.toThrow("Database query error")
-  })
-
-  test("debería manejar errores en la creación de servicio", async () => {
-    // Arrange
-    const nuevoServicio = {
-      nombre: "Test servicio",
-      descripcion: "Test descripción",
-      precio: 50000,
-    }
-    const error = new Error("Insert failed")
-    db.query.mockRejectedValue(error)
-
-    // Act & Assert
-    await expect(ServicioModel.create(nuevoServicio)).rejects.toThrow("Insert failed")
-  })
-
-  test("debería manejar errores en la actualización de servicio", async () => {
-    // Arrange
-    const datosActualizacion = {
-      nombre: "Test update",
-      descripcion: "Test descripción",
-      precio: 60000,
-      estado: "Activo",
-    }
-    const error = new Error("Update failed")
-    db.query.mockRejectedValue(error)
-
-    // Act & Assert
-    await expect(ServicioModel.update(1, datosActualizacion)).rejects.toThrow("Update failed")
-  })
-
-  test("debería manejar errores en la eliminación de servicio", async () => {
-    // Arrange
-    const error = new Error("Delete failed")
-    db.query.mockRejectedValue(error)
-
-    // Act & Assert
-    await expect(ServicioModel.delete(1)).rejects.toThrow("Delete failed")
-  })
-
-  test("debería manejar errores en el cambio de estado", async () => {
-    // Arrange
-    const error = new Error("State change failed")
-    db.query.mockRejectedValue(error)
-
-    // Act & Assert
-    await expect(ServicioModel.cambiarEstado(1, "Inactivo")).rejects.toThrow("State change failed")
+      await expect(ServicioModel.cambiarEstado(1, "Inactivo")).rejects.toThrow("Status change failed")
+    })
   })
 })
