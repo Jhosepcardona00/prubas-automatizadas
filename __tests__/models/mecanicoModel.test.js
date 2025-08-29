@@ -11,6 +11,7 @@ describe("MecanicoModel", () => {
     jest.clearAllMocks();
     mockQuery = jest.fn();
     db.query = mockQuery;
+    db.getConnection = jest.fn();
     db.getConnection.mockResolvedValue({
       beginTransaction: jest.fn().mockResolvedValue(),
       commit: jest.fn().mockResolvedValue(),
