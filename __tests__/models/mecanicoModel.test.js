@@ -6,13 +6,16 @@ jest.mock("../../src/config/db")
 const db = require("../../src/config/db")
 
 describe("MecanicoModel", () => {
+  let mockQuery;
   beforeEach(() => {
     jest.clearAllMocks();
+    mockQuery = jest.fn();
+    db.query = mockQuery;
     db.getConnection.mockResolvedValue({
       beginTransaction: jest.fn().mockResolvedValue(),
       commit: jest.fn().mockResolvedValue(),
       rollback: jest.fn().mockResolvedValue(),
-      query: db.query,
+      query: mockQuery,
       release: jest.fn().mockResolvedValue(),
     });
   });
